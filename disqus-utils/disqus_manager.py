@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!/usr/bin/env python
 '''
 Created on Dec 2, 2016
 
@@ -13,7 +14,6 @@ import requests
 import json
 import utils
 from datetime import datetime, timedelta
-import time
 import disqus_html
 
 

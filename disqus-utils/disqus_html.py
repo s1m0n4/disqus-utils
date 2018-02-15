@@ -29,44 +29,49 @@ class Generator(object):
         self.author = None
         self.icon = None
 
+    def write_comments(self, data, page_number=1, total_pages=1, add_footer=False):
+        str_buffer = StringIO.StringIO()
+        try:
+            j = 0
+            for comment in data:
+                j += 1
+                if not self.author:
+                    self.author = comment["author"]["username"]
+                    self.logger.debug("Author: %s" % self.author)
+                    self.icon = comment["author"]["avatar"]["permalink"]
+                    self.logger.debug("Icon: %s" % self.author)
+                    utils.write_file(self.output_file, self.__head__())
+
+                contents = self.__format_comment__(comment.get("createdAt", ""),
+                                                   comment["id"],
+                                                   comment.get("message", ""),
+                                                   comment.get("thread", {}).get("link", ""),
+                                                   comment.get("thread", {}).get("title", ""),
+                                                   comment.get("likes", 0),
+                                                   comment.get("dislikes", 0))
+                str_buffer.write(contents.encode('utf-8').strip())
+                
+                self.logger.info("comment %s [%d/%d] in page [%d/%d]" % (comment["id"], j, len(data), page_number, total_pages))
+            utils.write_file(self.output_file, str_buffer.getvalue(), 'a')
+            str_buffer.close()
+        finally:
+            if str_buffer:
+                str_buffer.close()
+        if add_footer:
+            utils.write_file(self.output_file, self.__foot__(), 'a')
+    
     def generate(self):
         cfiles = filter(lambda x: x.endswith(".json"), os.listdir(self.comments_dir))
         sfiles = sorted(cfiles, key=lambda x: int(x.split('.')[1]))
         self.logger.info("processing files\n%s" % '\n'.join(cfile for cfile in sfiles))
         i = 0
-        j = 0
         for cfile in sfiles:
             i += 1
-            j = 0
+            
             self.logger.debug("read %s" % os.path.join(self.comments_dir, cfile))
             text = utils.read_file(os.path.join(self.comments_dir, cfile))
             data = json.loads(text)
-            str_buffer = StringIO.StringIO()
-            try:
-                for comment in data:
-                    j += 1
-                    if not self.author:
-                        self.author = comment["author"]["username"]
-                        self.logger.debug("Author: %s" % self.author)
-                        self.icon = comment["author"]["avatar"]["permalink"]
-                        self.logger.debug("Icon: %s" % self.author)
-                        utils.write_file(self.output_file, self.__head__())
-
-                    contents = self.__format_comment__(comment.get("createdAt", ""),
-                                                       comment["id"],
-                                                       comment.get("message", ""),
-                                                       comment.get("thread", {}).get("link", ""),
-                                                       comment.get("thread", {}).get("title", ""),
-                                                       comment.get("likes", 0),
-                                                       comment.get("dislikes", 0))
-                    str_buffer.write(contents.encode('utf-8').strip())
-                    
-                    self.logger.info("comment %s [%d/%d] in file [%d/%d]" % (comment["id"], j, len(data), i, len(cfiles)))
-                utils.write_file(self.output_file, str_buffer.getvalue(), 'a')
-                str_buffer.close()
-            finally:
-                if str_buffer:
-                    str_buffer.close()
+            self.write_comments(data, page_number=i, total_pages=len(cfiles))
         utils.write_file(self.output_file, self.__foot__(), 'a')
 
     def __head__(self) :

@@ -5,6 +5,13 @@
    @copyright: 2016 s1m0n4
 '''
 import os
+import smtplib
+from os.path import basename
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+from time import localtime
 
 def read_file(f):
     '''
@@ -28,3 +35,36 @@ def write_file(ifile, contents, mode='w'):
 
     return True
 
+
+def send_email(sender, recipients, subject, text, smtp, files=[], port=465, user=None, password=None):
+    # Create a text/plain message
+    msg = MIMEMultipart()
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = ",".join(recipients)
+    msg['Date'] = formatdate(localtime=True)
+    msg.attach(MIMEText(text))
+    
+    for f in files:
+        with open(f, "rb") as fil:
+            part = MIMEApplication(
+                fil.read(),
+                Name=basename(f)
+            )
+        # After the file is closed
+        part['Content-Disposition'] = 'attachment; filename="%s"' % basename(f)
+        msg.attach(part)
+        
+    smtp_server = None
+    try:
+        smtp_server = smtplib.SMTP_SSL(smtp, port=port)
+        smtp_server.set_debuglevel(True)
+        smtp_server.ehlo()
+        if user:
+            smtp_server.login(user, password)
+        smtp_server.sendmail(sender, recipients, msg.as_string())
+    finally:
+        if smtp_server:
+            smtp_server.quit()
+    
+    return True
