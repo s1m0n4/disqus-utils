@@ -130,7 +130,7 @@ if __name__ == '__main__':
 
         if options.mailto:
             logger.info("send e-mail to %s" % repr(options.mailto))
-            text = "Attached you can find the %d most liked comments on %s that were posted from %s until %s" % (options.top, options.forum, params["start"], params["end"])
+            text = "Attached you can find the %d most liked comments on %s that were posted from %s (UTC) to %s (UTC)" % (options.top, options.forum, params["start"], params["end"])
             utils.send_email("hookiibot@gmail.com",
                              options.mailto,
                              "%d most liked comments on %s" % (options.top, options.forum),
