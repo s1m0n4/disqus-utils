@@ -17,26 +17,20 @@ from datetime import datetime, timedelta
 import disqus_html
 import utils
 from Queue import PriorityQueue
-import json
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Provides statistics on latest comments.")
-    parser.add_argument("--disqus-secret", type=str, required=True, help="Disqus API secret key")
-    parser.add_argument("--disqus-public", type=str, required=True, help="Disqus API public key")
+    parser.add_argument("--config", type=str, required=True, help="Path to the config file containing Disqus API secret/public keys and e-mail authentication")
     parser.add_argument("--working-dir", type=str, required=True, help="Working directory")
     parser.add_argument('--archive', action='store_true', help="Downloads and archive all the comments within the specified period")
     parser.add_argument('--limit-days', type=int, default=1, help="Limit the download to the specified number of days in the past")
     parser.add_argument("--start", type=str, help="Download comments from this date and time backwards, format must be 2016-12-10T15:24:24. Defaults to now.")
     parser.add_argument("--top", type=int, default=10, help="Specifies the number of most updated comments to link in the output")
-    parser.add_argument("--forum", type=str, default="hookii", help="Specifies which forum to crawl for comments")
     parser.add_argument("--chunk-size", type=int, default=100, help="Split the post IDs to delete in chunks of the specified size")
     parser.add_argument("--generate-html", type=str, required=True, help="Path to the HTML file containing the extracted comments")
     parser.add_argument("--log", type=str, help="Path to the log file")
     parser.add_argument("--mailto", nargs="+", help="E-mail recipients for most-liked comments")
-    parser.add_argument("--mailsmtp", type=str, help="The SMTP server to use")
-    parser.add_argument("--mailuser", type=str, help="E-mail user for sending e-mails")
-    parser.add_argument("--mailpwd", type=str, help="E-mail password for sending e-mails")
     
     options = parser.parse_args()
     logger = logging.getLogger(os.path.basename(sys.argv[0]))
@@ -57,10 +51,20 @@ if __name__ == '__main__':
         hasnext = True
         error = 0
         timelimit = None
-
-        params = {"api_key": options.disqus_public,
-                  "api_secret": options.disqus_secret,
-                  "forum": [options.forum],
+        
+        logger.info("Verify config")
+        config_text = utils.read_file(options.config)
+        if not config_text:
+            logger.error("Failed to read the required config file: %s" % options.config)
+            exit(1)
+        config = json.loads(config_text)
+        utils.verify_required_setting(config, ["disqus-secret", "disqus-public", "forum"], logger)
+        if options.mailto:
+            utils.verify_required_setting(config, ["mailsmtp", "mailuser", "mailpwd"], logger)
+            
+        params = {"api_key": config["disqus-public"],
+                  "api_secret": config["disqus-secret"],
+                  "forum": config["forum"],
                   "limit": 100,
                   "related": "thread"}
 
@@ -114,7 +118,7 @@ if __name__ == '__main__':
                 
                 if options.archive:
                     logger.debug("write")
-                    utils.write_file(os.path.join(options.working_dir, "%s.%s.%s.%d.json" % (options.forum, params["start"], params["end"], i)), json.dumps(data["response"]))
+                    utils.write_file(os.path.join(options.working_dir, "%s.%s.%s.%d.json" % (config["forum"], params["start"], params["end"], i)), json.dumps(data["response"]))
                 
             except Exception as apiex:
                 logger.exception(apiex)
@@ -130,15 +134,15 @@ if __name__ == '__main__':
 
         if options.mailto:
             logger.info("send e-mail to %s" % repr(options.mailto))
-            text = "Attached you can find the %d most liked comments on %s that were posted from %s (UTC) to %s (UTC)" % (options.top, options.forum, params["start"], params["end"])
+            text = "Attached you can find the %d most liked comments on %s that were posted from %s (UTC) to %s (UTC)" % (options.top, config["forum"], params["start"], params["end"])
             utils.send_email("hookiibot@gmail.com",
                              options.mailto,
-                             "%d most liked comments on %s" % (options.top, options.forum),
+                             "%d most liked comments on %s" % (options.top, config["forum"]),
                              text,
-                             options.mailsmtp,
+                             config["mailsmtp"],
                              [options.generate_html],
-                             user = options.mailuser,
-                             password = options.mailpwd)  
+                             user = config["mailuser"],
+                             password = config["mailpwd"])  
         
         logger.info("done")
             

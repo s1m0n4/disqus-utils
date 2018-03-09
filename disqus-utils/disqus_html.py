@@ -5,7 +5,6 @@ Created on Dec 9, 2016
 @author: s1m0n4
 @copyright: 2016 s1m0n4
 '''
-import re
 import os
 import json
 import utils
