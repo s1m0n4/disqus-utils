@@ -10,8 +10,7 @@ from os.path import basename
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import COMMASPACE, formatdate
-from time import localtime
+from email.utils import formatdate
 
 def read_file(f):
     '''
@@ -68,3 +67,17 @@ def send_email(sender, recipients, subject, text, smtp, files=[], port=465, user
             smtp_server.quit()
     
     return True
+
+
+def log_config_error_and_exit(missing_setting, logger):
+    logger.error("Missing required config setting: %s" % missing_setting)
+    exit(2)
+
+
+def verify_required_setting(config_dict, required_settings_list, logger):
+    for required_setting in required_settings_list:
+        setting = config_dict.get(required_setting)
+        if not setting:
+            log_config_error_and_exit(required_setting, logger)
+        if len(setting.strip()) == 0:
+            log_config_error_and_exit(required_setting, logger)
