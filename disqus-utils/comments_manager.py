@@ -26,9 +26,10 @@ if __name__ == '__main__':
     parser.add_argument('--archive', action='store_true', help="Downloads and archive all the comments within the specified period")
     parser.add_argument('--limit-days', type=int, default=1, help="Limit the download to the specified number of days in the past")
     parser.add_argument("--start", type=str, help="Download comments from this date and time backwards, format must be 2016-12-10T15:24:24. Defaults to now.")
-    parser.add_argument("--top", type=int, default=10, help="Specifies the number of most updated comments to link in the output")
+    parser.add_argument("--top", type=int, default=10, help="Specifies the number of most upvoted comments to link in the output")
     parser.add_argument("--chunk-size", type=int, default=100, help="Split the post IDs to delete in chunks of the specified size")
     parser.add_argument("--generate-html", type=str, required=True, help="Path to the HTML file containing the extracted comments")
+    parser.add_argument("--worst", action="store_true", help="If set, prints the most downvoted comments")
     parser.add_argument("--log", type=str, help="Path to the log file")
     parser.add_argument("--mailto", nargs="+", help="E-mail recipients for most-liked comments")
     
@@ -78,6 +79,7 @@ if __name__ == '__main__':
         
         i = 0
         most_liked = PriorityQueue(maxsize = options.top)
+        sorting_attr = "dislikes" if options.worst else "likes"
         while hasnext:
             if error > 10:
                 logger.error("reached max number of errors. abort")
@@ -101,19 +103,19 @@ if __name__ == '__main__':
                     logger.debug("empty data in response. abort")
                     break
                 
-                logger.info("sort comments and fill most liked queue")
-                sorted_comments = sorted(data["response"], key=lambda x: x["likes"], reverse=True)[0:options.top]
+                logger.info("sort comments and fill queue")
+                sorted_comments = sorted(data["response"], key=lambda x: x[sorting_attr], reverse=True)[0:options.top]
                 if most_liked.empty():
                     for x in xrange(len(sorted_comments)):
-                        most_liked.put((sorted_comments[x]["likes"], sorted_comments[x]))
+                        most_liked.put((sorted_comments[x][sorting_attr], sorted_comments[x]))
                 else:
                     for x in xrange(len(sorted_comments)):
                         last = most_liked.get()[1]
-                        if sorted_comments[x]["likes"] > last["likes"]:
-                            logger.info("popped comment with %d likes, inserted comment with %d likes" % (last["likes"], sorted_comments[x]["likes"], ))
-                            most_liked.put((sorted_comments[x]["likes"], sorted_comments[x]))
+                        if sorted_comments[x][sorting_attr] > last[sorting_attr]:
+                            logger.info("popped comment with %d %s, inserted comment with %d %s" % (last[sorting_attr], sorting_attr, sorted_comments[x][sorting_attr], sorting_attr))
+                            most_liked.put((sorted_comments[x][sorting_attr], sorted_comments[x]))
                         else:
-                            most_liked.put((last["likes"], last))
+                            most_liked.put((last[sorting_attr], last))
                 
                 
                 if options.archive:
@@ -129,7 +131,7 @@ if __name__ == '__main__':
             most_liked_list.append(most_liked.get()[1])
         
         logger.info("generate HTML file %s" % options.generate_html)      
-        generator = disqus_html.Generator(options.working_dir, options.generate_html, logger)
+        generator = disqus_html.Generator(options.working_dir, options.generate_html, logger, default_icon="http://www.hookii.it/wp-content/uploads/2014/12/favicon14.ico", default_title="hookii")
         generator.write_comments(list(reversed(most_liked_list)), add_footer=True)
 
         if options.mailto:
@@ -137,7 +139,7 @@ if __name__ == '__main__':
             text = "Attached you can find the %d most liked comments on %s that were posted from %s (UTC) to %s (UTC)" % (options.top, config["forum"], params["start"], params["end"])
             utils.send_email("hookiibot@gmail.com",
                              options.mailto,
-                             "%d most liked comments on %s" % (options.top, config["forum"]),
+                             "%d most %s comments on %s" % (options.top, "downvoted" if options.worst else "upvoted", config["forum"]),
                              text,
                              config["mailsmtp"],
                              [options.generate_html],

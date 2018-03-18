@@ -15,7 +15,7 @@ class Generator(object):
     Generates HTML formatted string containing all the comments
     '''
 
-    def __init__(self, comments_dir, output_file, logger):
+    def __init__(self, comments_dir, output_file, logger, default_icon=None, default_title=None):
         '''
         Constructor
         '''
@@ -25,21 +25,24 @@ class Generator(object):
         directory = os.path.dirname(output_file)
         if not os.path.exists(directory):
             os.makedirs(directory)
-        self.author = None
-        self.icon = None
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        self.author = None if not default_title else default_title
+        self.icon = None if not default_icon else default_icon
 
     def write_comments(self, data, page_number=1, total_pages=1, add_footer=False):
         str_buffer = StringIO.StringIO()
         try:
             j = 0
             for comment in data:
-                j += 1
-                if not self.author:
-                    self.author = comment["author"]["username"]
-                    self.logger.debug("Author: %s" % self.author)
-                    self.icon = comment["author"]["avatar"]["permalink"]
-                    self.logger.debug("Icon: %s" % self.author)
+                if not os.path.exists(self.output_file):
+                    if not self.author:
+                        self.author = comment["author"]["username"]
+                        self.logger.debug("Author: %s" % self.author)
+                        self.icon = comment["author"]["avatar"]["permalink"]
+                        self.logger.debug("Icon: %s" % self.author)
                     utils.write_file(self.output_file, self.__head__())
+                j += 1
 
                 contents = self.__format_comment__(comment.get("createdAt", ""),
                                                    comment["id"],
@@ -47,7 +50,8 @@ class Generator(object):
                                                    comment.get("thread", {}).get("link", ""),
                                                    comment.get("thread", {}).get("title", ""),
                                                    comment.get("likes", 0),
-                                                   comment.get("dislikes", 0))
+                                                   comment.get("dislikes", 0),
+                                                   comment.get("author", {}).get("name", None))
                 str_buffer.write(contents.encode('utf-8').strip())
                 
                 self.logger.info("comment %s [%d/%d] in page [%d/%d]" % (comment["id"], j, len(data), page_number, total_pages))
@@ -76,7 +80,7 @@ class Generator(object):
     def __head__(self) :
         return u'''<html>
     <head>
-    <title>Commenti di %s</title>
+    <title>%s</title>
      <meta name="generator" content="comments">
      <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
      <meta name="robots" content="index, follow">
@@ -101,13 +105,12 @@ class Generator(object):
     def __foot__(self):
         return '</body></html>'
 
-    def __format_comment__(self, comment_date, comment_id, comment_html, thread_link, thread_title, likes, dislikes) :
+    def __format_comment__(self, comment_date, comment_id, comment_html, thread_link, thread_title, likes, dislikes, author=None) :
         w = 4
         result = '\n<div style="margin-left:%dpx; margin-right:-%dx; width:80%%;">' % (w, w)
-        url_tag =  "<a href='%s#comment-%s'>" % (thread_link, comment_id)
 
-        result += "<h4 style='margin-bottom:0.1em;'>%s %s +%d -%d</a></h4>" % (url_tag, thread_title, likes, dislikes)
-        result += "<p style='margin-top:0.1em; font-size:60%%'>%s</p>" % comment_date
+        result += "<h4 style='margin-bottom:0.1em;'><a href='%s#comment-%s'>%s +%d -%d</a></h4>" % (thread_link, comment_id, thread_title, likes, dislikes)
+        result += "<p style='margin-top:0.1em; font-size:60%%'>%s</p>" % ("%s" % comment_date if not author else "%s - %s" % (author, comment_date))
     
         result += comment_html
         result += "<hr></div>\n"
